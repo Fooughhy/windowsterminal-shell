@@ -249,10 +249,10 @@ function CreateProfileMenuItems(
     echo $profileIcon
 
     if ($layout -eq "default") {
-      CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuTerminal\shell\$guid" $name $profileIcon $command $false
-      CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuTerminalAdmin\shell\$guid" $name $profileIcon $elevated $true
-      CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Drive\ContextMenus\MenuTerminal\shell\$guid" $name $profileIcon $command $false
-      CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Drive\ContextMenus\MenuTerminalAdmin\shell\$guid" $name $profileIcon $elevated $true
+        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuTerminal\shell\$guid" $name $profileIcon $command $false
+        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuTerminalAdmin\shell\$guid" $name $profileIcon $elevated $true
+        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Drive\ContextMenus\MenuTerminal\shell\$guid" $name $profileIcon $command $false
+        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Drive\ContextMenus\MenuTerminalAdmin\shell\$guid" $name $profileIcon $elevated $true
     } elseif ($layout -eq "flat") {
         CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminal_$guid" "Open $name here" $profileIcon $command $false
         CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminalAdmin_$guid" "Open $name here as administrator" $profileIcon $elevated $true
