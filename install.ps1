@@ -149,18 +149,12 @@ function GetProfileIcon (
         if (Test-Path $profile.icon) {
             # use user setting
             $profilePng = $profile.icon
-            echo "Test-Path"
-            echo $profilePng
         } elseif ($profile.icon -like "ms-appdata:///Roaming/*") {
             #resolve roaming cache
             $profilePng = $profile.icon -replace "ms-appdata:///Roaming", "$Env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\RoamingState" -replace "/", "\"
-            echo "Roaming"
-            echo $profilePng
         } elseif ($profile.icon -like "ms-appdata:///Local/*") {
             #resolve local cache
             $profilePng = $profile.icon -replace "ms-appdata:///Local", "$Env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState" -replace "/", "\"
-            echo "Local"
-            echo $profilePng
         } elseif ($profile.icon -like "ms-appx:///*") {
             # resolve app cache
             $profilePng = $profile.icon -replace "ms-appx://", $folder -replace "/", "\"
@@ -168,7 +162,6 @@ function GetProfileIcon (
             $profilePng = [System.Environment]::ExpandEnvironmentVariables($profile.icon)
         } else {
             Write-Host "Invalid profile icon found" $profile.icon ". Please report an issue at https://github.com/lextm/windowsterminal-shell/issues ."
-            echo $profilePng
         }
     }
 
