@@ -283,7 +283,7 @@ function GetProfileIcon (
         } elseif ($profile.icon -like "*%*") {
             $profilePng = [System.Environment]::ExpandEnvironmentVariables($icon)
         } else {
-            Write-Host "Invalid profile icon found $icon. Please report an issue at https://github.com/lextm/windowsterminal-shell/issues ."
+            Write-Host "Invalid profile icon found" $profile.icon ". Please report an issue at https://github.com/lextm/windowsterminal-shell/issues ."
         }
     }
 
