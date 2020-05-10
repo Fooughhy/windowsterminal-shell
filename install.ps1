@@ -239,7 +239,6 @@ function CreateProfileMenuItems(
     $command = "$executable -p ""$name"" -d ""%V."""
     $elevated = "PowerShell -WindowStyle Hidden -Command ""Start-Process cmd.exe -WindowStyle Hidden -Verb RunAs -ArgumentList \""/c $executable -p \""\""$name\""\"" -d \""\""%V.\""\""\"" """
     $profileIcon = GetProfileIcon $profile $folder $localCache $icon
-    echo $profileIcon
 
     if ($layout -eq "default") {
         CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuTerminal\shell\$guid" $name $profileIcon $command $false
