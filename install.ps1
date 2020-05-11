@@ -15,16 +15,16 @@ function ConvertTo-Icon
     [Parameter(Mandatory=$true, Position=0,ValueFromPipelineByPropertyName=$true)]
     [Alias('Fullname')]
     [string]$File,
-   
+
     # If provided, will output the icon to a location
     [Parameter(Position=1, ValueFromPipelineByPropertyName=$true)]
     [string]$OutputFile
     )
-    
+
     begin {
-        Add-Type -AssemblyName System.Drawing   
+        Add-Type -AssemblyName System.Drawing
     }
-    
+
     process {
         #region Load Icon
         $resolvedFile = $ExecutionContext.SessionState.Path.GetResolvedPSPathFromPSPath($file)
@@ -36,13 +36,13 @@ function ConvertTo-Icon
         $newBitmap = New-Object Drawing.Bitmap $inputBitmap, $size
         #endregion Load Icon
 
-        #region Save Icon                     
+        #region Save Icon
         $memoryStream = New-Object System.IO.MemoryStream
         $newBitmap.Save($memoryStream, [System.Drawing.Imaging.ImageFormat]::Png)
 
         $resolvedOutputFile = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($outputFile)
         $output = [IO.File]::Create("$resolvedOutputFile")
-        
+
         $iconWriter = New-Object System.IO.BinaryWriter($output)
         # 0-1 reserved, 0
         $iconWriter.Write([byte]0)
@@ -83,7 +83,7 @@ function ConvertTo-Icon
         $iconWriter.Write($memoryStream.ToArray());
 
         $iconWriter.Flush();
-        $output.Close()               
+        $output.Close()
         #endregion Save Icon
 
         #region Cleanup
@@ -125,7 +125,7 @@ function GetActiveProfiles {
     if ($settings.profiles.PSObject.Properties.name -match "list") {
         $list = $settings.profiles.list
     } else {
-        $list = $settings.profiles 
+        $list = $settings.profiles
     }
 
     return $list | Where-Object { -not $_.hidden} | Where-Object { ($null -eq $_.source) -or -not ($settings.disabledProfileSources -contains $_.source) }
@@ -148,7 +148,7 @@ function GetProfileIcon (
     if ($null -ne $profile.icon) {
         if (Test-Path $profile.icon) {
             # use user setting
-            $profilePng = $profile.icon  
+            $profilePng = $profile.icon
         } elseif ($profile.icon -like "ms-appdata:///Roaming/*") {
             #resolve roaming cache
             $profilePng = $profile.icon -replace "ms-appdata:///Roaming", "$Env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\RoamingState" -replace "/", "\"
@@ -239,15 +239,13 @@ function CreateProfileMenuItems(
     $profileIcon = GetProfileIcon $profile $folder $localCache $icon
 
     if ($layout -eq "default") {
-        $rootKey = "Registry::HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuTerminal\shell\$guid"
-        $rootKeyElevated = "Registry::HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuTerminalAdmin\shell\$guid"
-        CreateMenuItem $rootKey $name $profileIcon $command $false
-        CreateMenuItem $rootKeyElevated $name $profileIcon $elevated $true
+        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuTerminal\shell\$guid" $name $profileIcon $command $false
+        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuTerminalAdmin\shell\$guid" $name $profileIcon $elevated $true
     } elseif ($layout -eq "flat") {
         CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminal_$guid" "$name here" $profileIcon $command $false
-        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminalAdmin_$guid" "$name here as administrator" $profileIcon $elevated $true   
+        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminalAdmin_$guid" "$name here as administrator" $profileIcon $elevated $true
         CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\MenuTerminal_$guid" "$name here" $profileIcon $command $false
-        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\MenuTerminalAdmin_$guid" "$name here as administrator" $profileIcon $elevated $true   
+        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\MenuTerminalAdmin_$guid" "$name here as administrator" $profileIcon $elevated $true
     }
 }
 
@@ -290,9 +288,9 @@ function CreateMenuItems(
         $command = "$executable -d ""%V."""
         $elevated = "PowerShell -WindowStyle Hidden -Command ""Start-Process cmd.exe -WindowStyle Hidden -Verb RunAs -ArgumentList \""/c $executable -d \""\""%V.\""\""\"" """
         CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminalMini" "Windows Terminal here" $icon $command $false
-        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminalAdminMini" "Windows Terminal here as administrator" $icon $elevated $true   
+        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminalAdminMini" "Windows Terminal here as administrator" $icon $elevated $true
         CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\MenuTerminalMini" "Windows Terminal here" $icon $command $false
-        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\MenuTerminalAdminMini" "Windows Terminal here as administrator" $icon $elevated $true   
+        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\MenuTerminalAdminMini" "Windows Terminal here as administrator" $icon $elevated $true
         return
     }
 
