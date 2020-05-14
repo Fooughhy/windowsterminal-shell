@@ -95,8 +95,31 @@ function ConvertTo-Icon
 }
 
 function GetProgramFilesFolder {
-    $folder = (Get-ChildItem "$Env:ProgramFiles\WindowsApps" | Where-Object { $_.Name -like "Microsoft.WindowsTerminal_*" } | Select-Object -First 1)
-    return $folder.FullName
+    $versionFolders = (Get-ChildItem "$Env:ProgramFiles\WindowsApps" | Where-Object { $_.Name -like "Microsoft.WindowsTerminal_*__*" })
+    $foundVersion = $null
+    $result = $null
+    foreach ($versionFolder in $versionFolders) {
+        if ($versionFolder.Name -match "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+") {
+            $version = [version]$Matches.0
+            Write-Host "Found Windows Terminal version" $version
+            if ($null -eq $foundVersion -or $version -gt $foundVersion) {
+                $foundVersion = $version
+                $result = $versionFolder.FullName
+            }
+        } else {
+            Write-Warning "Found Windows Terminal unsupported version in" $versionFolder 
+        }
+    }
+
+    if ($foundVersion -lt [version]"0.11") {
+        Write-Warning "The latest version found is less than 0.11, which is not tested. The install script might fail in certain way."
+    }
+
+    if ($null -eq $result) {
+        Write-Error "Failed to find Windows Terminal actual folder. The install script might fail in certain way."
+    }
+
+    return $result
 }
 
 function GetWindowsTerminalIcon(
@@ -121,7 +144,13 @@ function GetWindowsTerminalIcon(
 }
 
 function GetActiveProfiles {
-    $settings = Get-Content "$env:LocalAppData\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json" | Out-String | ConvertFrom-Json
+    $file = "$env:LocalAppData\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json"
+    if (-not (Test-Path $file)) {
+        Write-Error "Couldn't find profiles. Please run Windows Terminal at least once after installing it. Exit."
+        exit 1
+    }
+
+    $settings = Get-Content $file | Out-String | ConvertFrom-Json
     if ($settings.profiles.PSObject.Properties.name -match "list") {
         $list = $settings.profiles.list
     } else {
@@ -168,15 +197,16 @@ function GetProfileIcon (
     if (($null -eq $profilePng) -or -not (Test-Path $profilePng)) {
         # fallback to profile PNG
         $profilePng = "$folder\ProfileIcons\$guid.scale-200.png"
+        if (-not (Test-Path($profilePng))) {
+            if ($profile.source -eq "Windows.Terminal.Wsl") {
+                $profilePng = "$folder\ProfileIcons\{9acb9455-ca41-5af7-950f-6bca1bc9722f}.scale-200.png"
+            }
+        }
     }
 
-    if (Test-Path $profilePng) {
+    if (Test-Path $profilePng) {        
         if ($profilePng -like "*.png") {
             # found PNG, convert to ICO
-            if (-not (Test-Path $localCache)) {
-                New-Item $localCache -ItemType Directory | Out-Null
-            }
-
             $profileIcon = "$localCache\$guid.ico"
             ConvertTo-Icon -File $profilePng -OutputFile $profileIcon
         } elseif ($profilePng -like "*.ico") {
@@ -263,6 +293,11 @@ function CreateMenuItems(
 {
     $folder = GetProgramFilesFolder
     $localCache = "$Env:LOCALAPPDATA\Microsoft\WindowsApps\Cache"
+
+    if (-not (Test-Path $localCache)) {
+        New-Item $localCache -ItemType Directory | Out-Null
+    }
+
     $icon = GetWindowsTerminalIcon $folder $localCache
 
     if ($layout -eq "default") {
@@ -330,7 +365,7 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
 
 $executable = "$Env:LOCALAPPDATA\Microsoft\WindowsApps\wt.exe"
 if (-not (Test-Path $executable)) {
-    Write-Error "Windows Terminal not detected. Learn how to install it from https://github.com/microsoft/terminal . Exit."
+    Write-Error "Windows Terminal not detected. Learn how to install it from https://github.com/microsoft/terminal (via Microsoft Store is recommended). Exit."
     exit 1
 }
 
