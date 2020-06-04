@@ -1,3 +1,56 @@
+#Requires -RunAsAdministrator
+#Requires -Version 6
+
+[CmdletBinding()]
+param(
+    [Parameter(Position = 0)]
+    [ValidateSet('Default', 'Flat', 'Mini')]
+    [string] $Layout = 'Default',
+    [Parameter()]
+    [switch] $PreRelease
+)
+
+function Generate-HelperScript(
+        # The cache folder
+        [Parameter(Mandatory=$true)]
+        [string]$cache)
+{
+    $content =
+    "Set shell = WScript.CreateObject(`"Shell.Application`")
+     executable = WSCript.Arguments(0)
+     folder = WScript.Arguments(1)
+     If Wscript.Arguments.Count > 2 Then
+         profile = WScript.Arguments(2)
+         ' 0 at the end means to run this command silently
+         shell.ShellExecute `"powershell`", `"Start-Process \`"`"`" & executable & `"\`"`" -ArgumentList \`"`"-p \`"`"\`"`"`" & profile & `"\`"`"\`"`" -d \`"`"\`"`"`" & folder & `"\`"`"\`"`" \`"`" `", `"`", `"runas`", 0
+     Else
+         ' 0 at the end means to run this command silently
+         shell.ShellExecute `"powershell`", `"Start-Process \`"`"`" & executable & `"\`"`" -ArgumentList \`"`"-d \`"`"\`"`"`" & folder & `"\`"`"\`"`" \`"`" `", `"`", `"runas`", 0
+     End If
+    "
+    Set-Content -Path "$cache/helper.vbs" -Value $content
+}
+
+# https://github.com/Duffney/PowerShell/blob/master/FileSystems/Get-Icon.ps1
+
+Function Get-Icon {
+
+    [CmdletBinding()]
+
+    Param (
+        [Parameter(Mandatory=$True, Position=1, HelpMessage="Enter the location of the .EXE file")]
+        [string]$File,
+
+        # If provided, will output the icon to a location
+        [Parameter(Position=1, ValueFromPipelineByPropertyName=$true)]
+        [string]$OutputFile
+    )
+
+    [System.Reflection.Assembly]::LoadWithPartialName('System.Drawing')  | Out-Null
+
+    [System.Drawing.Icon]::ExtractAssociatedIcon($File).ToBitmap().Save($OutputFile)
+}
+
 # https://gist.github.com/darkfall/1656050
 function ConvertTo-Icon
 {
@@ -12,7 +65,7 @@ function ConvertTo-Icon
     [CmdletBinding()]
     param(
     # The file
-    [Parameter(Mandatory=$true, Position=0,ValueFromPipelineByPropertyName=$true)]
+    [Parameter(Mandatory=$true, Position=0, ValueFromPipelineByPropertyName=$true)]
     [Alias('Fullname')]
     [string]$File,
 
@@ -138,15 +191,17 @@ function GetWindowsTerminalIcon(
     [Parameter(Mandatory=$true)]
     [string]$localCache)
 {
+    $icon = "$localCache\wt.ico"
     $actual = $folder + "\WindowsTerminal.exe"
     if (Test-Path $actual) {
         # use app icon directly.
         Write-Host "Found actual executable $actual."
-        $icon = $actual
+        $temp = "$localCache\wt.png"
+        Get-Icon -File $actual -OutputFile $temp
+        ConvertTo-Icon -File $temp -OutputFile $icon
     } else {
         # download from GitHub
         Write-Warning "Didn't find actual executable $actual so download icon from GitHub."
-        $icon = "$localCache\wt.ico"
         Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/microsoft/terminal/master/res/terminal.ico" -OutFile $icon
     }
 
@@ -197,7 +252,7 @@ function GetProfileIcon (
     if ($null -ne $icon) {
         if (Test-Path $icon) {
             # use user setting
-            $profilePng = $icon  
+            $profilePng = $icon
         } elseif ($profile.icon -like "ms-appdata:///Roaming/*") {
             #resolve roaming cache
             if ($isPreview) {
@@ -296,16 +351,16 @@ function CreateProfileMenuItems(
 {
     $guid = $profile.guid
     $name = $profile.name
-    $command = "$executable -p ""$name"" -d ""%V."""
-    $elevated = "PowerShell -WindowStyle Hidden -Command ""Start-Process cmd.exe -WindowStyle Hidden -Verb RunAs -ArgumentList \""/c $executable -p \""\""$name\""\"" -d \""\""%V.\""\""\"" """
+    $command = """$executable"" -p ""$name"" -d ""%V."""
+    $elevated = "wscript.exe ""$localCache/helper.vbs"" ""$executable"" ""%V."" ""$name"""
     $profileIcon = GetProfileIcon $profile $folder $localCache $icon $isPreview
 
-    if ($layout -eq "default") {
+    if ($layout -eq "Default") {
         CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuTerminal\shell\$guid" $name $profileIcon $command $false
         CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuTerminalAdmin\shell\$guid" $name $profileIcon $elevated $true
         CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Drive\ContextMenus\MenuTerminal\shell\$guid" $name $profileIcon $command $false
         CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Drive\ContextMenus\MenuTerminalAdmin\shell\$guid" $name $profileIcon $elevated $true
-    } elseif ($layout -eq "flat") {
+    } elseif ($layout -eq "Flat") {
         CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminal_$guid" "Open $name here" $profileIcon $command $false
         CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminalAdmin_$guid" "Open $name here as administrator" $profileIcon $elevated $true
         CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\MenuTerminal_$guid" "Open $name here" $profileIcon $command $false
@@ -330,56 +385,56 @@ function CreateMenuItems(
         New-Item $localCache -ItemType Directory | Out-Null
     }
 
+    Generate-HelperScript $localCache
     $icon = GetWindowsTerminalIcon $folder $localCache
 
-    if ($layout -eq "default") {
+    if ($layout -eq "Default") {
         # defaut layout creates two menus
-        New-Item -Path 'Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminal' -Force | Out-Null
-        New-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminal' -Name 'MUIVerb' -PropertyType String -Value 'Windows Terminal' | Out-Null
-        New-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminal' -Name 'Icon' -PropertyType String -Value $icon | Out-Null
-        New-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminal' -Name 'ExtendedSubCommandsKey' -PropertyType String -Value 'Directory\\ContextMenus\\MenuTerminal' | Out-Null
+        New-Item -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell\MenuTerminal' -Force | Out-Null
+        New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell\MenuTerminal' -Name 'MUIVerb' -PropertyType String -Value 'Windows Terminal' | Out-Null
+        New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell\MenuTerminal' -Name 'Icon' -PropertyType String -Value $icon | Out-Null
+        New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell\MenuTerminal' -Name 'ExtendedSubCommandsKey' -PropertyType String -Value 'Directory\\ContextMenus\\MenuTerminal' | Out-Null
 
-        New-Item -Path 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\MenuTerminal' -Force | Out-Null
-        New-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\MenuTerminal' -Name 'MUIVerb' -PropertyType String -Value 'Windows Terminal' | Out-Null
-        New-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\MenuTerminal' -Name 'Icon' -PropertyType String -Value $icon | Out-Null
-        New-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\MenuTerminal' -Name 'ExtendedSubCommandsKey' -PropertyType String -Value 'Directory\\ContextMenus\\MenuTerminal' | Out-Null
+        New-Item -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\Background\shell\MenuTerminal' -Force | Out-Null
+        New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\Background\shell\MenuTerminal' -Name 'MUIVerb' -PropertyType String -Value 'Windows Terminal' | Out-Null
+        New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\Background\shell\MenuTerminal' -Name 'Icon' -PropertyType String -Value $icon | Out-Null
+        New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\Background\shell\MenuTerminal' -Name 'ExtendedSubCommandsKey' -PropertyType String -Value 'Directory\\ContextMenus\\MenuTerminal' | Out-Null
 
-        New-Item -Path 'Registry::HKEY_CLASSES_ROOT\Drive\shell\MenuTerminal' -Force | Out-Null
-        New-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Drive\shell\MenuTerminal' -Name 'MUIVerb' -PropertyType String -Value 'Windows Terminal' | Out-Null
-        New-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Drive\shell\MenuTerminal' -Name 'Icon' -PropertyType String -Value $icon | Out-Null
-        New-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Drive\shell\MenuTerminal' -Name 'ExtendedSubCommandsKey' -PropertyType String -Value 'Drive\\ContextMenus\\MenuTerminal' | Out-Null
+        New-Item -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell\MenuTerminal' -Force | Out-Null
+        New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell\MenuTerminal' -Name 'MUIVerb' -PropertyType String -Value 'Windows Terminal' | Out-Null
+        New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell\MenuTerminal' -Name 'Icon' -PropertyType String -Value $icon | Out-Null
+        New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell\MenuTerminal' -Name 'ExtendedSubCommandsKey' -PropertyType String -Value 'Drive\\ContextMenus\\MenuTerminal' | Out-Null
 
-        New-Item -Path 'Registry::HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuTerminal\shell' -Force | Out-Null
-        New-Item -Path 'Registry::HKEY_CLASSES_ROOT\Drive\ContextMenus\MenuTerminal\shell' -Force | Out-Null
+        New-Item -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\ContextMenus\MenuTerminal\shell' -Force | Out-Null
+        New-Item -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\ContextMenus\MenuTerminal\shell' -Force | Out-Null
 
-        New-Item -Path 'Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminalAdmin' -Force | Out-Null
-        New-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminalAdmin' -Name 'MUIVerb' -PropertyType String -Value 'Windows Terminal as administrator' | Out-Null
-        New-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminalAdmin' -Name 'Icon' -PropertyType String -Value $icon | Out-Null
-        New-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminalAdmin' -Name 'ExtendedSubCommandsKey' -PropertyType String -Value 'Directory\\ContextMenus\\MenuTerminalAdmin' | Out-Null
+        New-Item -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell\MenuTerminalAdmin' -Force | Out-Null
+        New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell\MenuTerminalAdmin' -Name 'MUIVerb' -PropertyType String -Value 'Windows Terminal as administrator' | Out-Null
+        New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell\MenuTerminalAdmin' -Name 'Icon' -PropertyType String -Value $icon | Out-Null
+        New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell\MenuTerminalAdmin' -Name 'ExtendedSubCommandsKey' -PropertyType String -Value 'Directory\\ContextMenus\\MenuTerminalAdmin' | Out-Null
 
-        New-Item -Path 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\MenuTerminalAdmin' -Force | Out-Null
-        New-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\MenuTerminalAdmin' -Name 'MUIVerb' -PropertyType String -Value 'Windows Terminal as administrator' | Out-Null
-        New-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\MenuTerminalAdmin' -Name 'Icon' -PropertyType String -Value $icon | Out-Null
-        New-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\MenuTerminalAdmin' -Name 'ExtendedSubCommandsKey' -PropertyType String -Value 'Directory\\ContextMenus\\MenuTerminalAdmin' | Out-Null
+        New-Item -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\Background\shell\MenuTerminalAdmin' -Force | Out-Null
+        New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\Background\shell\MenuTerminalAdmin' -Name 'MUIVerb' -PropertyType String -Value 'Windows Terminal as administrator' | Out-Null
+        New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\Background\shell\MenuTerminalAdmin' -Name 'Icon' -PropertyType String -Value $icon | Out-Null
+        New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\Background\shell\MenuTerminalAdmin' -Name 'ExtendedSubCommandsKey' -PropertyType String -Value 'Directory\\ContextMenus\\MenuTerminalAdmin' | Out-Null
 
-        New-Item -Path 'Registry::HKEY_CLASSES_ROOT\Drive\shell\MenuTerminalAdmin' -Force | Out-Null
-        New-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Drive\shell\MenuTerminalAdmin' -Name 'MUIVerb' -PropertyType String -Value 'Windows Terminal as administrator' | Out-Null
-        New-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Drive\shell\MenuTerminalAdmin' -Name 'Icon' -PropertyType String -Value $icon | Out-Null
-        New-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\Drive\shell\MenuTerminalAdmin' -Name 'ExtendedSubCommandsKey' -PropertyType String -Value 'Drive\\ContextMenus\\MenuTerminalAdmin' | Out-Null
+        New-Item -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell\MenuTerminalAdmin' -Force | Out-Null
+        New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell\MenuTerminalAdmin' -Name 'MUIVerb' -PropertyType String -Value 'Windows Terminal as administrator' | Out-Null
+        New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell\MenuTerminalAdmin' -Name 'Icon' -PropertyType String -Value $icon | Out-Null
+        New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell\MenuTerminalAdmin' -Name 'ExtendedSubCommandsKey' -PropertyType String -Value 'Drive\\ContextMenus\\MenuTerminalAdmin' | Out-Null
 
-        New-Item -Path 'Registry::HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuTerminalAdmin\shell' -Force | Out-Null
-        New-Item -Path 'Registry::HKEY_CLASSES_ROOT\Drive\ContextMenus\MenuTerminalAdmin\shell' -Force | Out-Null
+        New-Item -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\ContextMenus\MenuTerminalAdmin\shell' -Force | Out-Null
+        New-Item -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\ContextMenus\MenuTerminalAdmin\shell' -Force | Out-Null
 
-    } elseif ($layout -eq "mini") {
+    } elseif ($layout -eq "Mini") {
         $command = "$executable -d ""%V."""
-        $elevated = "PowerShell -WindowStyle Hidden -Command ""Start-Process cmd.exe -WindowStyle Hidden -Verb RunAs -ArgumentList \""/c $executable -d \""\""%V.\""\""\"" """
-        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminalMini" "Windows Terminal" $icon $command $false
-        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminalAdminMini" "Windows Terminal as administrator" $icon $elevated $true
-        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\MenuTerminalMini" "Windows Terminal" $icon $command $false
-        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\MenuTerminalAdminMini" "Windows Terminal as administrator" $icon $elevated $true
-        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Drive\shell\MenuTerminalMini" "Windows Terminal" $icon $command $false
-        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Drive\shell\MenuTerminalAdminMini" "Windows Terminal as administrator" $icon $elevated $true
-        return
+        $elevated = "wscript.exe ""$localCache/helper.vbs"" ""$executable"" ""%V."""
+        CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell\MenuTerminalMini" "Windows Terminal" $icon $command $false
+        CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell\MenuTerminalAdminMini" "Windows Terminal as administrator" $icon $elevated $true
+        CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\Background\shell\MenuTerminalMini" "Windows Terminal" $icon $command $false
+        CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\Background\shell\MenuTerminalAdminMini" "Windows Terminal as administrator" $icon $elevated $true
+        CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell\MenuTerminalMini" "Windows Terminal" $icon $command $false
+        CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell\MenuTerminalAdminMini" "Windows Terminal as administrator" $icon $elevated $true        return
     }
 
     $isPreview = $folder -like "*WindowsTerminalPreview*"
@@ -391,8 +446,14 @@ function CreateMenuItems(
 
 # Based on @nerdio01's version in https://github.com/microsoft/terminal/issues/1060
 
-if ($PSVersionTable.PSVersion.Major -lt 7) {
-    Write-Error "Must be executed in PowerShell 7 and above. Learn how to install it from https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell-core-on-windows?view=powershell-7 . Exit."
+if ((Test-Path "Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminal") -and
+    -not (Test-Path "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell\MenuTerminal")) {
+    Write-Error "Please execute uninstall.old.ps1 to remove previous installation."
+    exit 1
+}
+
+if ($PSVersionTable.PSVersion.Major -lt 6) {
+    Write-Error "Must be executed in PowerShell 6 and above. Learn how to install it from https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell-core-on-windows?view=powershell-7 . Exit."
     exit 1
 }
 
@@ -402,29 +463,8 @@ if (-not (Test-Path $executable)) {
     exit 1
 }
 
-$includePreview = $false
-$layout = "default"
-foreach ($arg in $args) {
-    if ($arg -like "--*") {
-        #flag detected
-        if ($arg -eq "--prerelease") {
-            $includePreview = $true
-            Write-Host "Include preview release."
-        } else {
-            Write-Warning "Unknown flag $arg. Ignore."
-        }
-    } else {
-        #layout
-        if (@("default", "mini", "flat") -contains $arg) {
-            $layout = $arg
-        } else {
-            Write-Warning "Unknown layout $arg. Use default layout instead."
-        }
-    }
-}
+Write-Host "Use $Layout layout."
 
-Write-Host "Use $layout layout."
-
-CreateMenuItems $executable $layout $includePreview
+CreateMenuItems $executable $Layout $PreRelease
 
 Write-Host "Windows Terminal installed to Windows Explorer context menu."
