@@ -436,7 +436,9 @@ function CreateMenuItems(
         CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\Background\shell\MenuTerminalMini" "Windows Terminal" $icon $command $false
         CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\Background\shell\MenuTerminalAdminMini" "Windows Terminal as administrator" $icon $elevated $true
         CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell\MenuTerminalMini" "Windows Terminal" $icon $command $false
-        CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell\MenuTerminalAdminMini" "Windows Terminal as administrator" $icon $elevated $true        return
+        CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell\MenuTerminalAdminMini" "Windows Terminal as administrator" $icon $elevated $true
+
+        return
     }
 
     $isPreview = $folder -like "*WindowsTerminalPreview*"
