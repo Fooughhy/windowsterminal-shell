@@ -273,7 +273,7 @@ function GetProfileIcon (
         } elseif ($profile.icon -like "*%*") {
             $profilePng = [System.Environment]::ExpandEnvironmentVariables($icon)
         } else {
-            Write-Host "Invalid profile icon found $icon. Please report an issue at https://github.com/lextm/windowsterminal-shell/issues ."
+            Write-Host "Invalid profile icon found $icon. Please report an issue at https://github.com/Fooughhy/windowsterminal-shell/issues ."
         }
     }
 
@@ -355,18 +355,18 @@ function CreateProfileMenuItems(
     $elevated = "wscript.exe ""$localCache/helper.vbs"" ""$executable"" ""%V."" ""$name"""
     $profileIcon = GetProfileIcon $profile $folder $localCache $icon $isPreview
 
-    if ($layout -eq "Default") {
-        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuTerminal\shell\$guid" $name $profileIcon $command $false
-        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuTerminalAdmin\shell\$guid" $name $profileIcon $elevated $true
-        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Drive\ContextMenus\MenuTerminal\shell\$guid" $name $profileIcon $command $false
-        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Drive\ContextMenus\MenuTerminalAdmin\shell\$guid" $name $profileIcon $elevated $true
-    } elseif ($layout -eq "Flat") {
-        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminal_$guid" "Open $name here" $profileIcon $command $false
-        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\shell\MenuTerminalAdmin_$guid" "Open $name here as administrator" $profileIcon $elevated $true
-        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\MenuTerminal_$guid" "Open $name here" $profileIcon $command $false
-        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\MenuTerminalAdmin_$guid" "Open $name here as administrator" $profileIcon $elevated $true
-        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Drive\shell\MenuTerminal_$guid" "Open $name here" $profileIcon $command $false
-        CreateMenuItem "Registry::HKEY_CLASSES_ROOT\Drive\shell\MenuTerminalAdmin_$guid" "Open $name here as administrator" $profileIcon $elevated $true
+    if ($layout.ToLower() -eq "default") {
+        CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\ContextMenus\MenuTerminal\shell\$guid" $name $profileIcon $command $false
+        CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\ContextMenus\MenuTerminalAdmin\shell\$guid" $name $profileIcon $elevated $true
+        CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\ContextMenus\MenuTerminal\shell\$guid" $name $profileIcon $command $false
+        CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\ContextMenus\MenuTerminalAdmin\shell\$guid" $name $profileIcon $elevated $true
+    } elseif ($layout.ToLower() -eq "flat") {
+        CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell\MenuTerminal_$guid" "Open $name here" $profileIcon $command $false
+        CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell\MenuTerminalAdmin_$guid" "Open $name here as administrator" $profileIcon $elevated $true
+        CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\Background\shell\MenuTerminal_$guid" "Open $name here" $profileIcon $command $false
+        CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\Background\shell\MenuTerminalAdmin_$guid" "Open $name here as administrator" $profileIcon $elevated $true
+        CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell\MenuTerminal_$guid" "Open $name here" $profileIcon $command $false
+        CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell\MenuTerminalAdmin_$guid" "Open $name here as administrator" $profileIcon $elevated $true
     }
 }
 
@@ -388,7 +388,7 @@ function CreateMenuItems(
     Generate-HelperScript $localCache
     $icon = GetWindowsTerminalIcon $folder $localCache
 
-    if ($layout -eq "Default") {
+    if ($layout.ToLower() -eq "default" ) {
         # defaut layout creates two menus
         New-Item -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell\MenuTerminal' -Force | Out-Null
         New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell\MenuTerminal' -Name 'MUIVerb' -PropertyType String -Value 'Windows Terminal' | Out-Null
@@ -406,6 +406,7 @@ function CreateMenuItems(
         New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell\MenuTerminal' -Name 'ExtendedSubCommandsKey' -PropertyType String -Value 'Drive\\ContextMenus\\MenuTerminal' | Out-Null
 
         New-Item -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\ContextMenus\MenuTerminal\shell' -Force | Out-Null
+        #New-Item -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\Background\ContextMenus\MenuTerminal\shell' -Force | Out-Null
         New-Item -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\ContextMenus\MenuTerminal\shell' -Force | Out-Null
 
         New-Item -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell\MenuTerminalAdmin' -Force | Out-Null
@@ -424,9 +425,10 @@ function CreateMenuItems(
         New-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\shell\MenuTerminalAdmin' -Name 'ExtendedSubCommandsKey' -PropertyType String -Value 'Drive\\ContextMenus\\MenuTerminalAdmin' | Out-Null
 
         New-Item -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\ContextMenus\MenuTerminalAdmin\shell' -Force | Out-Null
+        #New-Item -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\Background\ContextMenus\MenuTerminalAdmin\shell' -Force | Out-Null
         New-Item -Path 'Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Drive\ContextMenus\MenuTerminalAdmin\shell' -Force | Out-Null
 
-    } elseif ($layout -eq "Mini") {
+    } elseif ($layout.ToLower() -eq "mini") {
         $command = "$executable -d ""%V."""
         $elevated = "wscript.exe ""$localCache/helper.vbs"" ""$executable"" ""%V."""
         CreateMenuItem "Registry::HKEY_CURRENT_USER\SOFTWARE\Classes\Directory\shell\MenuTerminalMini" "Windows Terminal" $icon $command $false
